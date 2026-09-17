@@ -498,9 +498,7 @@
   const PLAY_WIDTH = PLAY_RIGHT - PLAY_LEFT;
   const TOP_SPAWN_Y = 34;
   const BIN_LINE_Y = 468;
-  const BALL_R = 9;
-  const STAGED_BALL_R = 24; // bigger, touch-friendly target while waiting on the rail
-  const SHRINK_MS = 220; // how long a released ball takes to settle to BALL_R
+  const STAGED_BALL_R = 24; // touch-friendly on the rail, and stays this size once released too
   const PEG_R = 5;
   const SPACING_X = 40;
   const SPACING_Y = 34;
@@ -816,7 +814,6 @@
       y: TOP_SPAWN_Y,
       vx: vx||0, vy: 0,
       r: STAGED_BALL_R,
-      spawnAt: performance.now(),
       instrument,
       color: COLORS[instrument],
       volume: volume==null ? 1 : volume,
@@ -980,15 +977,8 @@
 
   function update(dt){
     const g = GRAVITY_BASE * gravityMult;
-    const frameNow = performance.now();
     for(let i=balls.length-1;i>=0;i--){
       const b = balls[i];
-      if(b.spawnAt !== undefined){
-        const t = clamp((frameNow-b.spawnAt)/SHRINK_MS, 0, 1);
-        const eased = 1 - Math.pow(1-t, 3);
-        b.r = STAGED_BALL_R + (BALL_R-STAGED_BALL_R)*eased;
-        if(t>=1) delete b.spawnAt;
-      }
       b.vy += g*dt;
       b.x += b.vx*dt;
       b.y += b.vy*dt;
