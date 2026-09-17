@@ -810,13 +810,16 @@
   let gravityMult = 1;
   const GRAVITY_BASE = 640; // px/s^2
 
-  function spawnBall(instrument, x, vx, volume){
+  // startBig: true only for a ball coming straight off the staging rail (it
+  // was shown big there, so it shrinks smoothly into place). An automatic
+  // loop repeat never appeared staged, so it drops in at its settled size.
+  function spawnBall(instrument, x, vx, volume, startBig){
     balls.push({
       x: clamp(x, PLAY_LEFT+STAGED_BALL_R+2, PLAY_RIGHT-STAGED_BALL_R-2),
       y: TOP_SPAWN_Y,
       vx: vx||0, vy: 0,
-      r: STAGED_BALL_R,
-      spawnAt: performance.now(),
+      r: startBig ? STAGED_BALL_R : BALL_R,
+      spawnAt: startBig ? performance.now() : undefined,
       instrument,
       color: COLORS[instrument],
       volume: volume==null ? 1 : volume,
@@ -864,9 +867,9 @@
   // setTimeout; track the ids so Clear can cancel any not yet fired —
   // otherwise a repeat mid-stagger keeps dropping balls after Clear.
   let pendingSpawns = [];
-  function spawnPattern(pattern, volume){
+  function spawnPattern(pattern, volume, startBig){
     pattern.forEach((s,i)=>{
-      const id = setTimeout(()=>{ spawnBall(s.instrument, s.x, (Math.random()-0.5)*26, volume); }, i*45);
+      const id = setTimeout(()=>{ spawnBall(s.instrument, s.x, (Math.random()-0.5)*26, volume, startBig); }, i*45);
       pendingSpawns.push(id);
     });
   }
@@ -878,7 +881,7 @@
   function releaseStaged(){
     if(staged.length===0) return;
     const pattern = staged.map(s=>({x:s.x, instrument:s.instrument}));
-    spawnPattern(pattern);
+    spawnPattern(pattern, undefined, true);
     if(loopEnabled) addLoopLayer(pattern, loopDelayMs);
     staged = [];
     updateReleaseUI();
