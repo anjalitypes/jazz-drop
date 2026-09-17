@@ -499,6 +499,8 @@
   const TOP_SPAWN_Y = 34;
   const BIN_LINE_Y = 468;
   const BALL_R = 9;
+  const STAGED_BALL_R = 16; // bigger, touch-friendly target while waiting on the rail
+  const SHRINK_MS = 220; // how long a released ball takes to settle to BALL_R
   const PEG_R = 5;
   const SPACING_X = 40;
   const SPACING_Y = 34;
@@ -810,10 +812,11 @@
 
   function spawnBall(instrument, x, vx, volume){
     balls.push({
-      x: clamp(x, PLAY_LEFT+BALL_R+2, PLAY_RIGHT-BALL_R-2),
+      x: clamp(x, PLAY_LEFT+STAGED_BALL_R+2, PLAY_RIGHT-STAGED_BALL_R-2),
       y: TOP_SPAWN_Y,
       vx: vx||0, vy: 0,
-      r: BALL_R,
+      r: STAGED_BALL_R,
+      spawnAt: performance.now(),
       instrument,
       color: COLORS[instrument],
       volume: volume==null ? 1 : volume,
@@ -828,19 +831,19 @@
   let stagedSeq = 0;
 
   function addStaged(instrument, x){
-    let sx = clamp(x, PLAY_LEFT+BALL_R+2, PLAY_RIGHT-BALL_R-2);
+    let sx = clamp(x, PLAY_LEFT+STAGED_BALL_R+2, PLAY_RIGHT-STAGED_BALL_R-2);
     for(let attempt=0; attempt<6; attempt++){
-      const clash = staged.find(s=>Math.abs(s.x-sx) < BALL_R*1.8);
+      const clash = staged.find(s=>Math.abs(s.x-sx) < STAGED_BALL_R*1.5);
       if(!clash) break;
-      sx = clamp(sx + (attempt%2===0 ? 1:-1)*(BALL_R*1.9+attempt*2), PLAY_LEFT+BALL_R+2, PLAY_RIGHT-BALL_R-2);
+      sx = clamp(sx + (attempt%2===0 ? 1:-1)*(STAGED_BALL_R*1.6+attempt*2), PLAY_LEFT+STAGED_BALL_R+2, PLAY_RIGHT-STAGED_BALL_R-2);
     }
     staged.push({ id: ++stagedSeq, x: sx, instrument, color: COLORS[instrument] });
     updateReleaseUI();
   }
 
   function findStagedNear(x, y){
-    if(Math.abs(y-STAGE_Y) > 22) return -1;
-    let closest=-1, closestD=BALL_R*1.6;
+    if(Math.abs(y-STAGE_Y) > STAGED_BALL_R+8) return -1;
+    let closest=-1, closestD=STAGED_BALL_R+6;
     for(let i=0;i<staged.length;i++){
       const d = Math.abs(staged[i].x-x);
       if(d<closestD){ closestD=d; closest=i; }
@@ -977,8 +980,15 @@
 
   function update(dt){
     const g = GRAVITY_BASE * gravityMult;
+    const frameNow = performance.now();
     for(let i=balls.length-1;i>=0;i--){
       const b = balls[i];
+      if(b.spawnAt !== undefined){
+        const t = clamp((frameNow-b.spawnAt)/SHRINK_MS, 0, 1);
+        const eased = 1 - Math.pow(1-t, 3);
+        b.r = STAGED_BALL_R + (BALL_R-STAGED_BALL_R)*eased;
+        if(t>=1) delete b.spawnAt;
+      }
       b.vy += g*dt;
       b.x += b.vx*dt;
       b.y += b.vy*dt;
@@ -1075,17 +1085,17 @@
       ctx.stroke();
     }
 
-    // staged balls, waiting on the rail
+    // staged balls, waiting on the rail — big enough to grab and drag
     for(const s of staged){
       const bob = Math.sin(now/260 + s.id) * 2.2;
       const sy = STAGE_Y + bob;
       ctx.beginPath();
-      ctx.arc(s.x, sy, BALL_R+6, 0, Math.PI*2);
+      ctx.arc(s.x, sy, STAGED_BALL_R+6, 0, Math.PI*2);
       ctx.fillStyle = hexToRgba(s.color, 0.18 + Math.sin(now/300+s.id)*0.06);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(s.x, sy, BALL_R, 0, Math.PI*2);
-      const sg = ctx.createRadialGradient(s.x-3,sy-3,0.5,s.x,sy,BALL_R);
+      ctx.arc(s.x, sy, STAGED_BALL_R, 0, Math.PI*2);
+      const sg = ctx.createRadialGradient(s.x-3,sy-3,0.5,s.x,sy,STAGED_BALL_R);
       sg.addColorStop(0,'#ffffff');
       sg.addColorStop(0.35, s.color);
       sg.addColorStop(1, shade(s.color,-40));
@@ -1243,7 +1253,7 @@
     const rect = canvas.getBoundingClientRect();
     const scale = LOGICAL_W/rect.width;
     const localX = (e.clientX-rect.left)*scale;
-    s.x = clamp(localX, PLAY_LEFT+BALL_R+2, PLAY_RIGHT-BALL_R-2);
+    s.x = clamp(localX, PLAY_LEFT+STAGED_BALL_R+2, PLAY_RIGHT-STAGED_BALL_R-2);
     draggingStaged.moved = true;
   });
 
